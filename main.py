@@ -1,20 +1,18 @@
+import logging
 import os
-import json
 import random
 import uuid
+from datetime import datetime
+from warnings import filterwarnings
+
 import boto3
-import logging
 import requests
 from PIL import Image
-from io import BytesIO
-from typing import Optional
 from dotenv import load_dotenv
-from botocore.client import Config
-from warnings import filterwarnings
-from telegram.warnings import PTBUserWarning
-from datetime import date, timedelta, datetime
 from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, ContextTypes, MessageHandler, filters
+from telegram.warnings import PTBUserWarning
+
 from stickers import TADA, GREETING
 
 load_dotenv()
@@ -236,7 +234,7 @@ async def lot_additional_photo(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data['url_photos'].append(photo_file.file_path)
     if len(context.user_data['url_photos']) < 5:
         await update.message.reply_text(
-            f"🖼 *Еще {5 - len(context.user_data['url_photos'])} доп-фото*\n\n"
+            f"🖼 *Еще {5 - len(context.user_data['url_photos'])} допфото*\n\n"
             "Пропустить добавление фото, нажмите /skip\n\n"
             "Отменить заполнение, нажмите /cancel",
             parse_mode='MarkdownV2')
@@ -342,7 +340,7 @@ async def user_reg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             return LOCATION
         else:
             response.raise_for_status()
-            return f"Status code: {response.status_code}"
+            return ConversationHandler.END
     except requests.RequestException:
         await update.message.reply_text("Ошибка при запросе к API. Повторите попытку.")
         return ConversationHandler.END
