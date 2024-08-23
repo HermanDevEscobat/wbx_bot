@@ -454,8 +454,8 @@ def main() -> None:
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(os.getenv("TOKEN")).build()
     # Subscribe
-    conv_sub = ConversationHandler(
-        entry_points=[CommandHandler("reg", user_reg)],
+    conv_reg = ConversationHandler(
+        entry_points=[CommandHandler("acc", user_reg)],
         states={
             LOCATION: [MessageHandler(filters.LOCATION, user_loc)],
             WORKING_TIME: [CallbackQueryHandler(user_wt_callback)],
@@ -465,7 +465,7 @@ def main() -> None:
     )
     # Add lot
     conv_add_lot = ConversationHandler(
-        entry_points=[CommandHandler("add_lot", lot_add_start)],
+        entry_points=[CommandHandler("lots", lot_add_start)],
         states={
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, lot_name)],
             CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, lot_category)],
@@ -479,7 +479,7 @@ def main() -> None:
     )
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(conv_sub)
+    application.add_handler(conv_reg)
     application.add_handler(conv_add_lot)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
