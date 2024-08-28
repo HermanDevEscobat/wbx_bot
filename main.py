@@ -121,6 +121,7 @@ async def lot_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     response = requests.get(url)
     data = response.json()
     if data['blocked']:
+        logger.info(data['blocked'])
         return ConversationHandler.END
     else:
         if link is not None:
