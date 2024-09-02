@@ -2,9 +2,10 @@ import logging
 import os
 import random
 import uuid
+import re
 from datetime import datetime
+from typing import Any
 from warnings import filterwarnings
-
 import boto3
 import requests
 from PIL import Image
@@ -14,6 +15,8 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Conv
 from telegram.warnings import PTBUserWarning
 
 from stickers import TADA, GREETING
+
+URL = "https://hermandevescobat-wbx-django-46de.twc1.net"
 
 load_dotenv()
 
@@ -31,7 +34,7 @@ logger.addHandler(file_handler)
 
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
 
-NAME, CATEGORY, SUBCATEGORY, MAIN_PHOTO, ADDITIONAL_PHOTO, DESCRIPTION, PRICE = range(7)
+SELECT_LOT_MENU, SELECTED_LOT_DEL, FINISH_LOT_DEL, NAME, CATEGORY, SUBCATEGORY, MAIN_PHOTO, ADDITIONAL_PHOTO, DESCRIPTION, PRICE = range(10)
 LOCATION, WORKING_TIME, IS_REG = range(3)
 
 
@@ -114,10 +117,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Функции add_lot
 # noinspection PyUnusedLocal
-async def lot_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.message.from_user.id
+async def lot_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    id_tlg = update.message.from_user.id
+    context.user_data['id_tlg'] = id_tlg
     link = update.message.from_user.link
-    url = f"https://netwbx.ru/api/user/{user_id}/"
+    url = f"{URL}/api/user/{id_tlg}/"
     response = requests.get(url)
     data = response.json()
     if data['blocked']:
@@ -125,18 +129,68 @@ async def lot_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     else:
         if link is not None:
             context.user_data['link'] = link
+            keyboard = [
+                [InlineKeyboardButton("🎯 Добавить лот", callback_data='add_lot')],
+                [InlineKeyboardButton("🗑 Удалить лот", callback_data='del_lot')],
+                [InlineKeyboardButton("🚪 Выход", callback_data='exit')],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(
-                "🔎 *Название*\n\n"
-                f"Отменить заполнение, нажмите /cancel",
-                parse_mode='MarkdownV2'
+                text="Выберите действие", reply_markup=reply_markup
             )
-            return NAME
+            return SELECT_LOT_MENU
+
         else:
             await update.message.reply_text(
                 "У вас нет @username(ссылки), что бы открывать чат с вами. Зайдите \"Настройки\", \"Имя пользователя\", придумайте имя пользователя, после установки это сообщение больше не появится.",
             )
             return ConversationHandler.END
 
+
+async def lot_selected_delet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    keyboard = [[InlineKeyboardButton('✅ Да', callback_data='yes_del'),
+                 InlineKeyboardButton('🚫 Нет', callback_data='no_del')]]
+    context.user_data['lot_id_del'] = query.data
+    url = f"{URL}/api/lot/{query.data}/"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        lot = response.json()
+        await query.edit_message_text(
+            "❗️❗️❗️*Подтвердить удаление*❗️❗️❗️\n"
+            f"🔑 *ID:* {re.escape(str(lot['id']))}\n"
+            f"🔎 *Название:* {re.escape(lot['name'])}\n"
+            f"📋 *Описание:* {re.escape(lot['description'])}\n"
+            f"💵 *Цена:* {re.escape(str(lot['price']))} ₽\n",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='MarkdownV2')
+        return FINISH_LOT_DEL
+    except requests.RequestException as e:
+        logger.error('Error request delet lot: %s', e)
+        return ConversationHandler.END
+
+async def lot_finish_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    match query.data:
+        case 'no_del':
+            await query.delete_message()
+            return ConversationHandler.END
+        case 'yes_del':
+            url = f"{URL}/api/lot/{context.user_data['lot_id_del']}/"
+            headers = {
+                'Content-Type': 'application/json'
+            }
+            response = requests.delete(url, headers=headers)
+            if response.status_code == 204:
+                await query.edit_message_text('Лот успешно был удален')
+                return ConversationHandler.END
+            else:
+                logger.info(response)
+                await query.edit_message_text('Упс... Что-то пошло не так. Обратитесь в поддержку.')
+                return ConversationHandler.END
 
 async def lot_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     url = "https://netwbx.ru/api/category"
@@ -273,9 +327,8 @@ async def lot_description(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def lot_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    id_tlg = update.message.from_user.id
     price = update.message.text
-    url_photos = upload_photos_to_s3(os.getenv("BACKET_NAME"), context.user_data['url_photos'], id_tlg)
+    url_photos = upload_photos_to_s3(os.getenv("BACKET_NAME"), context.user_data['url_photos'], context.user_data['id_tlg'])
     url = "https://netwbx.ru/api/create-lot/"
     headers = {
         "Content-Type": "application/json"
@@ -283,7 +336,7 @@ async def lot_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if price.isdigit() and 0 <= int(price) and 1 <= len(price) <= 10:
         data = {
-            "id_tlg": id_tlg,
+            "id_tlg": context.user_data['id_tlg'],
             "name": context.user_data['name'],
             "categories": context.user_data['category'],
             "url_photos": url_photos,
@@ -311,7 +364,7 @@ async def lot_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def user_reg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     id_tlg = update.message.from_user.id
-    url = f"https://netwbx.ru/api/user/{id_tlg}/"
+    url = f"{URL}/api/user/{id_tlg}/"
     try:
         response = requests.get(url)
         if response.status_code == 200:
@@ -446,6 +499,47 @@ async def user_wt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await user_working_time(update, context)
 
 
+async def lot_select_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int | Any:
+    query = update.callback_query
+    await query.answer()
+    match query.data:
+        case 'add_lot':
+            await query.edit_message_text(
+                "🔎 *Название*\n\n"
+                f"Отменить заполнение, нажмите /cancel",
+                parse_mode='MarkdownV2'
+            )
+            return NAME
+        case 'del_lot':
+            url = f"{URL}/api/user_lots/{context.user_data['id_tlg']}/"
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                lots = response.json()
+                if not lots:
+                    await query.edit_message_text(
+                        "🫗 *У вас нет лотов*\n\n",
+                        parse_mode='MarkdownV2'
+                    )
+                    return ConversationHandler.END
+                else:
+                    context.user_data['lots_for_delete'] = lots
+                    keyboard = [[InlineKeyboardButton(f"ID [{lot['id']}] | {lot['name'][:35]}", callback_data=f"{lot['id']}")] for lot in lots if lot['id']]
+                    await query.edit_message_text(
+                        "📋 *Выберите из спиcка лот для удаления*\n\n"
+                        f"Отменить заполнение, нажмите /cancel",
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode='MarkdownV2'
+                    )
+                    return SELECTED_LOT_DEL
+            except requests.RequestException as e:
+                logger.error('Error request delet lot: %s', e)
+                return ConversationHandler.END
+        case 'exit':
+            await query.delete_message()
+            return ConversationHandler.END
+
+
 # Главная функция
 def main() -> None:
     """Run the bot."""
@@ -463,8 +557,11 @@ def main() -> None:
     )
     # Add lot
     conv_add_lot = ConversationHandler(
-        entry_points=[CommandHandler("lots", lot_add_start)],
+        entry_points=[CommandHandler("lot", lot_start)],
         states={
+            SELECT_LOT_MENU: [CallbackQueryHandler(lot_select_callback)],
+            SELECTED_LOT_DEL: [CallbackQueryHandler(lot_selected_delet)],
+            FINISH_LOT_DEL: [CallbackQueryHandler(lot_finish_delete)],
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, lot_name)],
             CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, lot_category)],
             SUBCATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, lot_subcategory)],
