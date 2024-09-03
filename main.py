@@ -27,7 +27,7 @@ filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBU
 
 NAME, CATEGORY, SUBCATEGORY, MAIN_PHOTO, ADDITIONAL_PHOTO, DESCRIPTION, PRICE = range(7)
 LOCATION, WORKING_TIME, IS_REG = range(3)
-
+URL = "https://hermandevescobat-wbx-django-46de.twc1.net/"
 
 def get_geo_object_info(data):
     for feature in data['response']['GeoObjectCollection']['featureMember']:
@@ -111,7 +111,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def lot_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     link = update.message.from_user.link
-    url = f"https://netwbx.ru/api/user/{user_id}/"
+    url = f"{URL}api/user/{user_id}/"
     response = requests.get(url)
     data = response.json()
     if data['blocked']:
@@ -133,7 +133,7 @@ async def lot_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def lot_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    url = "https://netwbx.ru/api/category"
+    url = f"{URL}api/category"
     name = update.message.text
     if 10 <= len(name) <= 80:
         context.user_data['name'] = name
@@ -270,7 +270,7 @@ async def lot_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     id_tlg = update.message.from_user.id
     price = update.message.text
     url_photos = upload_photos_to_s3(os.getenv("BACKET_NAME"), context.user_data['url_photos'], id_tlg)
-    url = "https://netwbx.ru/api/create-lot/"
+    url = f"{URL}api/create-lot/"
     headers = {
         "Content-Type": "application/json"
     }
@@ -305,7 +305,7 @@ async def lot_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def user_reg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     id_tlg = update.message.from_user.id
-    url = f"https://netwbx.ru/api/user/{id_tlg}/"
+    url = f"{URL}api/user/{id_tlg}/"
     try:
         response = requests.get(url)
         if response.status_code == 200:
@@ -379,7 +379,7 @@ async def user_loc(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def user_working_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     id_tlg = update.callback_query.from_user.id
-    url = "https://netwbx.ru/api/create-user/"
+    url = f"{URL}api/create-user/"
     headers = {
         "Content-Type": "application/json"
     }
