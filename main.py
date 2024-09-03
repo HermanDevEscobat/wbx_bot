@@ -4,7 +4,6 @@ import random
 import uuid
 from datetime import datetime
 from warnings import filterwarnings
-
 import boto3
 import requests
 from PIL import Image
@@ -12,7 +11,6 @@ from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, ContextTypes, MessageHandler, filters
 from telegram.warnings import PTBUserWarning
-
 from stickers import TADA, GREETING
 
 load_dotenv()
@@ -23,11 +21,7 @@ logging.basicConfig(
     level=logging.INFO)
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
-file_handler = logging.FileHandler('error_log.txt')
-file_handler.setLevel(logging.ERROR)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
 
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
 
@@ -445,6 +439,8 @@ async def user_wt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Now you can call the working_time function
     await user_working_time(update, context)
 
+def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.error("Exception while handling an update:", exc_info=context.error)
 
 # Главная функция
 def main() -> None:
@@ -479,6 +475,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(conv_reg)
     application.add_handler(conv_add_lot)
+    application.add_error_handler(error_handler)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
